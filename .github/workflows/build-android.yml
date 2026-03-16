@@ -1,14 +1,9 @@
 name: 2. Build Android APK & AAB
 
-# -------------------------------------------------------
-# Configurare: setează variabilele de mai jos
-# -------------------------------------------------------
 env:
-  APP_DIR: 'app'         # Directorul proiectului Cordova (schimbă dacă e altul)
-  APP_SLUG: 'cum-te-simti'
-  CORDOVA_VERSION: '13'        # Versiunea Cordova CLI
-  ANDROID_PLATFORM_VERSION: '14.0.0' # Versiunea platformei Cordova Android
-# -------------------------------------------------------
+  APP_DIR: 'app'
+  CORDOVA_VERSION: '13'
+  ANDROID_PLATFORM_VERSION: '14.0.0'
 
 on:
   push:
@@ -24,6 +19,16 @@ jobs:
     steps:
       - name: Checkout cod
         uses: actions/checkout@v4
+
+      - name: Extrage APP_SLUG din config.xml
+        id: slug
+        run: |
+          # Extrage conținutul tag-ului <name> din config.xml și generează slug
+          APP_NAME=$(sed -n 's/.*<name>\(.*\)<\/name>.*/\1/p' ${{ env.APP_DIR }}/config.xml | head -1)
+          APP_SLUG=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
+          echo "APP_SLUG=$APP_SLUG" >> $GITHUB_OUTPUT
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "📱 Aplicație: $APP_NAME → slug: $APP_SLUG"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -54,11 +59,16 @@ jobs:
         working-directory: ${{ env.APP_DIR }}
         run: cordova build android --debug
 
+      - name: Redenumește Debug APK
+        run: |
+          cp ${{ env.APP_DIR }}/platforms/android/app/build/outputs/apk/debug/app-debug.apk \
+             ${{ env.APP_DIR }}/platforms/android/app/build/outputs/apk/debug/${{ steps.slug.outputs.APP_SLUG }}-debug.apk
+
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: ${{ env.APP_DIR }}/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          name: ${{ steps.slug.outputs.APP_SLUG }}-debug-apk
+          path: ${{ env.APP_DIR }}/platforms/android/app/build/outputs/apk/debug/${{ steps.slug.outputs.APP_SLUG }}-debug.apk
           retention-days: 30
 
       - name: Build Release AAB (nesemnat)

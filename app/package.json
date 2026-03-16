@@ -1,0 +1,11 @@
+{
+  "name": "cum-te-simti",
+  "displayName": "Cum te simți?",
+  "version": "1.0.0",
+  "description": "Cum te simți? - jurnal zilnic de stare",
+  "main": "index.js",
+  "scripts": {},
+  "cordova": {
+    "platforms": ["android"]
+  }
+}

@@ -4,9 +4,10 @@ name: 2. Build Android APK & AAB
 # Configurare: setează variabilele de mai jos
 # -------------------------------------------------------
 env:
-  APP_DIR: 'rummy-app'         # Directorul proiectului Cordova (schimbă dacă e altul)
-  CORDOVA_VERSION: '12'        # Versiunea Cordova CLI
-  ANDROID_PLATFORM_VERSION: '13' # Versiunea platformei Cordova Android
+  APP_DIR: 'app'         # Directorul proiectului Cordova (schimbă dacă e altul)
+  APP_SLUG: 'cum-te-simti'
+  CORDOVA_VERSION: '13'        # Versiunea Cordova CLI
+  ANDROID_PLATFORM_VERSION: '14.0.0' # Versiunea platformei Cordova Android
 # -------------------------------------------------------
 
 on:

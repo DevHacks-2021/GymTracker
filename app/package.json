@@ -1,0 +1,11 @@
+{
+  "name": "gymtracker",
+  "displayName": "GymTracker",
+  "version": "1.0.0",
+  "description": "GymTracker - jurnal antrenamente sala fitness",
+  "main": "index.js",
+  "scripts": {},
+  "cordova": {
+    "platforms": ["android"]
+  }
+}

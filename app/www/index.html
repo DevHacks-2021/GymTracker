@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0f0f0f"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>GymTracker</title>
+<link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<!-- ═══════════ NAVBAR ═══════════ -->
+<header class="navbar" id="navbar">
+  <div class="nav-logo">GymTracker</div>
+  <nav class="nav-tabs" id="navTabs">
+    <button class="nav-tab active" onclick="showView('dashboard')">Dashboard</button>
+    <button class="nav-tab" onclick="showView('aparate')">Aparate</button>
+    <button class="nav-tab" onclick="showView('antrenament')">+ Log</button>
+  </nav>
+</header>
+
+<!-- ═══════════ SCREENS ═══════════ -->
+
+<!-- DASHBOARD -->
+<section class="screen active" id="screen-dashboard">
+  <div class="page-top">
+    <div class="page-title">Bună ziua</div>
+    <div class="chips" id="statsChips"></div>
+  </div>
+  <div id="dashGrid" class="aparate-grid"></div>
+  <div class="empty-state" id="dashEmpty" style="display:none">
+    <div class="empty-icon">🏋️</div>
+    <p>Niciun aparat adăugat.<br>Începe prin a crea primul aparat.</p>
+    <button class="btn btn-black" onclick="showView('aparate')">+ Aparat nou</button>
+  </div>
+</section>
+
+<!-- APARATE -->
+<section class="screen" id="screen-aparate">
+  <div class="page-top">
+    <div class="page-title">Aparate</div>
+    <button class="btn btn-black" id="btnAdd">+ Nou</button>
+  </div>
+  <div class="list-wrap" id="aparateList"></div>
+  <div class="empty-state" id="aparateEmpty" style="display:none">
+    <div class="empty-icon">🏋️</div>
+    <p>Niciun aparat adăugat.</p>
+  </div>
+</section>
+
+<!-- ANTRENAMENT -->
+<section class="screen" id="screen-antrenament">
+  <div class="page-top">
+    <div class="page-title">Antrenament</div>
+    <div class="train-date" id="trainDate"></div>
+  </div>
+  <div class="card">
+    <div class="card-label">Aparat</div>
+    <div class="picker-grid" id="pickerGrid"></div>
+    <div class="empty-state" id="pickerEmpty" style="display:none;padding:1rem 0">
+      <p style="font-size:.85rem;color:var(--muted)">Adaugă mai întâi un aparat.</p>
+    </div>
+  </div>
+
+  <div class="card" id="setsCard" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem">
+      <div class="card-label" style="margin:0">Serii</div>
+      <div class="unit-toggle">
+        <button class="unit-btn active" data-unit="kg">kg</button>
+        <button class="unit-btn" data-unit="nivel">nivel</button>
+      </div>
+    </div>
+    <div class="sets-head">
+      <span>#</span><span id="colLabel">Greutate</span><span>Serii</span><span>Reps</span><span></span>
+    </div>
+    <div id="setsList"></div>
+    <button class="btn-add-row" id="btnAddSet">+ serie</button>
+  </div>
+
+  <div class="card" id="noteCard" style="display:none">
+    <div class="card-label">Note</div>
+    <textarea id="trainNote" placeholder="Observații..."></textarea>
+  </div>
+
+  <div id="saveWrap" style="display:none;padding:0 0 1rem">
+    <button class="btn btn-black btn-full" id="btnSaveTrain">Salvează antrenament</button>
+  </div>
+</section>
+
+<!-- DETALIU -->
+<section class="screen" id="screen-detaliu">
+  <div class="page-top">
+    <button class="btn-back" id="btnBack">← înapoi</button>
+    <button class="btn btn-outline" id="btnEditDet">Editează</button>
+  </div>
+  <div class="det-hero">
+    <div class="det-photo" id="detPhoto"></div>
+    <div class="det-info">
+      <div class="det-name" id="detNume"></div>
+      <div class="g-badge" id="detGrup" style="display:none"></div>
+    </div>
+  </div>
+  <div class="meta-grid" id="detMeta"></div>
+
+  <div class="card" style="margin-top:1rem">
+    <div class="card-label">Progres greutate</div>
+    <div class="chart-wrap" id="chartWrap">
+      <div class="chart-empty" id="chartEmpty">Niciun antrenament înregistrat.</div>
+      <canvas id="progCanvas" style="display:none"></canvas>
+    </div>
+  </div>
+
+  <div id="histList" class="hist-list"></div>
+</section>
+
+<!-- ═══════════ MODAL APARAT ═══════════ -->
+<div class="overlay" id="modalAp" style="display:none">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="mTitle">Aparat nou</div>
+      <button class="modal-x" id="mClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Denumire *</label>
+        <input type="text" id="mNume" placeholder="ex: Press piept, Biceps curls..."/>
+      </div>
+      <div class="field">
+        <label>Grup muscular</label>
+        <select id="mGrup">
+          <option value="">— Selectează —</option>
+          <option>Piept</option><option>Spate</option><option>Umeri</option>
+          <option>Biceps</option><option>Triceps</option><option>Picioare</option>
+          <option>Abdomen</option><option>Cardio</option><option>Full body</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Fotografie <span id="photoCounter" style="font-weight:400;text-transform:none;letter-spacing:0"></span></label>
+        <div class="photo-drop" id="photoDrop">
+          <input type="file" id="photoFile" accept="image/*" style="display:none"/>
+          <img id="photoPreview" src="" alt="" style="display:none"/>
+          <div class="photo-hint" id="photoHint">
+            <div style="font-size:1.5rem">📷</div>
+            <p>Click pentru fotografie</p>
+            <small>Max 5 MB · se comprimă automat</small>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Note</label>
+        <textarea id="mNote" placeholder="Poziție, setări aparat..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="mCancel">Anulează</button>
+        <button class="btn btn-black" id="mSave">Salvează</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

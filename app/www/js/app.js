@@ -1,16 +1,14 @@
 /* ══════════════════════════════════════════════════
-   GymTracker — app.js
+   GymTracker v4 — app.js
+   • Grafice sparkline per aparat în dashboard
+   • Dată editabilă la log
+   • Fără limită de aparate
+   • Comprimare imagini (Canvas, max 800px, JPEG 72%)
    • Zero dependențe externe
-   • Chart.js inline (mini, line only)
-   • Comprimare imagini prin Canvas
-   • Max 15 aparate
-   • Unitate kg sau nivel
-═══════════════════════════════════════════════════ */
+══════════════════════════════════════════════════ */
 
-/* ── CONSTANTS ── */
-const MAX_APARATE = 15;
-const PHOTO_MAX_W = 800;   // px — dimensiune maximă după comprimare
-const PHOTO_QUALITY = 0.72; // JPEG quality 0-1
+const PHOTO_MAX_W  = 800;
+const PHOTO_QUALITY = 0.72;
 const STORE_AP  = 'gt_ap';
 const STORE_ANT = 'gt_ant';
 
@@ -20,8 +18,8 @@ const db = {
   set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
   uid: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
 };
-const getAp  = () => db.get(STORE_AP, []);
-const setAp  = v  => db.set(STORE_AP, v);
+const getAp  = () => db.get(STORE_AP,  []);
+const setAp  = v  => db.set(STORE_AP,  v);
 const getAnt = () => db.get(STORE_ANT, []);
 const setAnt = v  => db.set(STORE_ANT, v);
 
@@ -35,29 +33,21 @@ function toast(msg, type = '') {
   _tt = setTimeout(() => { $toast.className = 'toast'; }, 2600);
 }
 
-/* ── NAVIGATION ── */
-const VIEWS = ['dashboard', 'aparate', 'antrenament', 'detaliu'];
-
+/* ── NAV ── */
 function showView(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
-
-  const sc = document.getElementById('screen-' + name);
-  if (sc) sc.classList.add('active');
-
-  // only update nav tab if it's a main tab
+  document.getElementById('screen-' + name).classList.add('active');
   const tab = document.querySelector(`.nav-tab[onclick="showView('${name}')"]`);
   if (tab) tab.classList.add('active');
-
   if (name === 'dashboard')   renderDash();
   if (name === 'aparate')     renderAparate();
-  if (name === 'antrenament') initAntrenament();
+  if (name === 'antrenament') initLog();
 }
 
 /* ── DATE HELPERS ── */
 const MO = ['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec'];
 const ZI = ['Dum','Lun','Mar','Mie','Joi','Vin','Sâm'];
-
 function fmtShort(iso) {
   const d = new Date(iso);
   return d.getDate() + ' ' + MO[d.getMonth()];
@@ -66,13 +56,73 @@ function fmtFull(iso) {
   const d = new Date(iso);
   return ZI[d.getDay()] + ' ' + d.getDate() + ' ' + MO[d.getMonth()] + ' ' + d.getFullYear();
 }
-
-// Set nav date initially
-(function() {
+function todayISO() {
   const d = new Date();
-  document.getElementById('trainDate').textContent =
-    ZI[d.getDay()] + ', ' + d.getDate() + ' ' + MO[d.getMonth()] + ' ' + d.getFullYear();
-})();
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
+/* ══════════════════════════════════════
+   SPARKLINE — mini inline canvas chart
+   data: array of numbers, w/h in CSS px
+══════════════════════════════════════ */
+function drawSparkline(canvas, data) {
+  if (!canvas || !data.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth  || 110;
+  const H = canvas.offsetHeight || 56;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const PAD = { t: 4, r: 4, b: 4, l: 4 };
+  const cW = W - PAD.l - PAD.r;
+  const cH = H - PAD.t - PAD.b;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const rng = max - min || 1;
+
+  const xp = i  => PAD.l + (i / Math.max(data.length - 1, 1)) * cW;
+  const yp = v  => PAD.t + cH - ((v - min) / rng) * cH;
+
+  // area fill
+  const grad = ctx.createLinearGradient(0, PAD.t, 0, PAD.t + cH);
+  grad.addColorStop(0, 'rgba(15,15,15,.1)');
+  grad.addColorStop(1, 'rgba(15,15,15,0)');
+  ctx.beginPath();
+  ctx.moveTo(xp(0), yp(data[0]));
+  data.forEach((v, i) => { if (i) ctx.lineTo(xp(i), yp(v)); });
+  ctx.lineTo(xp(data.length - 1), PAD.t + cH);
+  ctx.lineTo(xp(0), PAD.t + cH);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // line
+  ctx.beginPath();
+  ctx.strokeStyle = '#0f0f0f';
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  data.forEach((v, i) => { i === 0 ? ctx.moveTo(xp(i), yp(v)) : ctx.lineTo(xp(i), yp(v)); });
+  ctx.stroke();
+
+  // last point dot
+  if (data.length > 1) {
+    const li = data.length - 1;
+    ctx.beginPath();
+    ctx.arc(xp(li), yp(data[li]), 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.strokeStyle = '#0f0f0f';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+}
 
 /* ══════════════════════════════════════
    DASHBOARD
@@ -81,44 +131,64 @@ function renderDash() {
   const ap  = getAp();
   const ant = getAnt();
 
-  // stats
-  const volum = ant.reduce((s, a) =>
+  // chips
+  const vol = ant.reduce((s, a) =>
     s + a.sets.reduce((ss, st) =>
       ss + (parseFloat(st.val) || 0) * (parseInt(st.serii) || 1) * (parseInt(st.reps) || 1), 0), 0);
   document.getElementById('statsChips').innerHTML =
-    `<div class="chip">Aparate: <strong>${ap.length}/${MAX_APARATE}</strong></div>` +
+    `<div class="chip">Aparate: <strong>${ap.length}</strong></div>` +
     `<div class="chip">Sesiuni: <strong>${ant.length}</strong></div>` +
-    `<div class="chip">Volum: <strong>${volum.toFixed(0)}</strong></div>`;
+    `<div class="chip">Volum: <strong>${vol.toFixed(0)}</strong></div>`;
 
   const grid  = document.getElementById('dashGrid');
   const empty = document.getElementById('dashEmpty');
-
   if (!ap.length) { grid.innerHTML = ''; empty.style.display = 'block'; return; }
   empty.style.display = 'none';
 
   grid.innerHTML = ap.map(a => {
-    const sessions = ant.filter(x => x.apId === a.id).sort((x, y) => y.data.localeCompare(x.data));
-    const last = sessions[0];
+    const sessions = ant.filter(x => x.apId === a.id).sort((x, y) => x.data.localeCompare(y.data));
+    const last = sessions[sessions.length - 1];
     const maxV = last ? Math.max(...last.sets.map(s => parseFloat(s.val) || 0)) : null;
     const unit = last?.unit || 'kg';
+    const sparkData = sessions.map(s => Math.max(...s.sets.map(x => parseFloat(x.val) || 0)));
+    const hasChart = sparkData.length >= 2;
+
     const photoEl = a.photo
-      ? `<img class="ap-photo" src="${a.photo}" alt="${a.nume}" loading="lazy">`
-      : `<div class="ap-photo-ph">🏋️</div>`;
+      ? `<img src="${a.photo}" alt="${a.nume}">`
+      : '🏋️';
+
     return `<div class="ap-card" onclick="openDetaliu('${a.id}')">
       <div class="ap-actions">
         <button class="icon-btn" onclick="event.stopPropagation();openEdit('${a.id}')">✏</button>
         <button class="icon-btn del" onclick="event.stopPropagation();delAp('${a.id}')">✕</button>
       </div>
-      ${photoEl}
-      <div class="ap-body">
-        ${a.grup ? `<div class="ap-grup">${a.grup}</div>` : ''}
-        <div class="ap-name">${a.nume}</div>
-        <div class="ap-last">${last
-          ? `${fmtShort(last.data)} · <strong>${maxV} ${unit}</strong>`
-          : 'Niciun antrenament'}</div>
+      <div class="ap-row">
+        <div class="ap-photo-sm">${photoEl}</div>
+        <div class="ap-info">
+          ${a.grup ? `<div class="ap-grup-sm">${a.grup}</div>` : ''}
+          <div class="ap-name">${a.nume}</div>
+          <div class="ap-last">${last
+            ? `${fmtShort(last.data)} · <strong>${maxV} ${unit}</strong>`
+            : 'Niciun antrenament'}</div>
+        </div>
+        <div class="ap-spark">
+          ${hasChart ? `<canvas id="spark-${a.id}" width="110" height="56"></canvas>` : ''}
+        </div>
       </div>
     </div>`;
   }).join('');
+
+  // draw sparklines after DOM inserted
+  requestAnimationFrame(() => {
+    ap.forEach(a => {
+      const sessions = ant.filter(x => x.apId === a.id).sort((x, y) => x.data.localeCompare(y.data));
+      const sparkData = sessions.map(s => Math.max(...s.sets.map(x => parseFloat(x.val) || 0)));
+      if (sparkData.length >= 2) {
+        const c = document.getElementById('spark-' + a.id);
+        if (c) drawSparkline(c, sparkData);
+      }
+    });
+  });
 }
 
 /* ══════════════════════════════════════
@@ -129,15 +199,12 @@ function renderAparate() {
   const ant = getAnt();
   const list  = document.getElementById('aparateList');
   const empty = document.getElementById('aparateEmpty');
-
   if (!ap.length) { list.innerHTML = ''; empty.style.display = 'block'; return; }
   empty.style.display = 'none';
-
   list.innerHTML = ap.map(a => {
     const cnt = ant.filter(x => x.apId === a.id).length;
-    const thumbEl = a.photo
-      ? `<div class="list-thumb"><img src="${a.photo}" alt="${a.nume}"></div>`
-      : `<div class="list-thumb">🏋️</div>`;
+    const thumbEl = a.photo ? `<div class="list-thumb"><img src="${a.photo}" alt="${a.nume}"></div>`
+                             : `<div class="list-thumb">🏋️</div>`;
     return `<div class="list-row" onclick="openDetaliu('${a.id}')">
       ${thumbEl}
       <div class="list-info">
@@ -153,47 +220,34 @@ function renderAparate() {
 }
 
 /* ══════════════════════════════════════
-   MODAL APARAT — Add / Edit
+   MODAL APARAT
 ══════════════════════════════════════ */
-let editId    = null;
-let curPhoto  = null;
+let editId   = null;
+let curPhoto = null;
 
-document.getElementById('btnAdd').addEventListener('click', () => {
-  if (getAp().length >= MAX_APARATE) {
-    toast(`Limită de ${MAX_APARATE} aparate atinsă!`, 'err'); return;
-  }
-  openAdd();
-});
+document.getElementById('btnAdd').addEventListener('click', openAdd);
 document.getElementById('mClose').addEventListener('click', closeModal);
 document.getElementById('mCancel').addEventListener('click', closeModal);
 document.getElementById('mSave').addEventListener('click', saveAp);
-
-// photo upload + compression
 document.getElementById('photoDrop').addEventListener('click', () =>
   document.getElementById('photoFile').click());
+document.getElementById('modalAp').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalAp')) closeModal();
+});
 
 document.getElementById('photoFile').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) { toast('Imaginea e prea mare (max 5 MB)', 'err'); return; }
+  if (file.size > 5 * 1024 * 1024) { toast('Imaginea e prea mare (max 5 MB)!', 'err'); return; }
   compressImage(file, PHOTO_MAX_W, PHOTO_QUALITY, dataUrl => {
     curPhoto = dataUrl;
     document.getElementById('photoPreview').src = dataUrl;
     document.getElementById('photoPreview').style.display = 'block';
     document.getElementById('photoHint').style.display = 'none';
-    updatePhotoCounter();
   });
 });
 
-function updatePhotoCounter() {
-  const ap = getAp();
-  const used = ap.filter(a => a.photo).length + (curPhoto && !editId ? 1 : 0);
-  const el = document.getElementById('photoCounter');
-  if (el) el.textContent = `(${used}/${MAX_APARATE} cu poze)`;
-}
-
-/* Image compression via Canvas */
-function compressImage(file, maxW, quality, callback) {
+function compressImage(file, maxW, quality, cb) {
   const reader = new FileReader();
   reader.onload = ev => {
     const img = new Image();
@@ -202,9 +256,8 @@ function compressImage(file, maxW, quality, callback) {
       let w = img.width, h = img.height;
       if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
       canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/jpeg', quality));
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      cb(canvas.toDataURL('image/jpeg', quality));
     };
     img.src = ev.target.result;
   };
@@ -220,17 +273,15 @@ function openAdd() {
   document.getElementById('photoFile').value = '';
   document.getElementById('photoPreview').style.display = 'none';
   document.getElementById('photoHint').style.display = 'flex';
-  updatePhotoCounter();
   document.getElementById('modalAp').style.display = 'flex';
 }
-
 function openEdit(id) {
   const a = getAp().find(x => x.id === id); if (!a) return;
   editId = id; curPhoto = a.photo || null;
   document.getElementById('mTitle').textContent = 'Editează aparat';
-  document.getElementById('mNume').value = a.nume;
-  document.getElementById('mGrup').value = a.grup || '';
-  document.getElementById('mNote').value = a.note || '';
+  document.getElementById('mNume').value  = a.nume;
+  document.getElementById('mGrup').value  = a.grup || '';
+  document.getElementById('mNote').value  = a.note || '';
   document.getElementById('photoFile').value = '';
   if (a.photo) {
     document.getElementById('photoPreview').src = a.photo;
@@ -240,18 +291,9 @@ function openEdit(id) {
     document.getElementById('photoPreview').style.display = 'none';
     document.getElementById('photoHint').style.display = 'flex';
   }
-  updatePhotoCounter();
   document.getElementById('modalAp').style.display = 'flex';
 }
-
-function closeModal() {
-  document.getElementById('modalAp').style.display = 'none';
-}
-
-// Close on overlay tap
-document.getElementById('modalAp').addEventListener('click', e => {
-  if (e.target === document.getElementById('modalAp')) closeModal();
-});
+function closeModal() { document.getElementById('modalAp').style.display = 'none'; }
 
 function saveAp() {
   const nume = document.getElementById('mNume').value.trim();
@@ -260,49 +302,43 @@ function saveAp() {
   if (editId) {
     const i = list.findIndex(x => x.id === editId);
     if (i > -1) {
-      list[i].nume  = nume;
-      list[i].grup  = document.getElementById('mGrup').value;
-      list[i].note  = document.getElementById('mNote').value.trim();
+      list[i].nume = nume;
+      list[i].grup = document.getElementById('mGrup').value;
+      list[i].note = document.getElementById('mNote').value.trim();
       if (curPhoto) list[i].photo = curPhoto;
     }
     toast('Aparat actualizat', 'ok');
   } else {
-    if (list.length >= MAX_APARATE) { toast(`Limită ${MAX_APARATE} aparate!`, 'err'); return; }
-    list.push({
-      id: db.uid(), nume,
+    list.push({ id: db.uid(), nume,
       grup:  document.getElementById('mGrup').value,
       note:  document.getElementById('mNote').value.trim(),
-      photo: curPhoto || null,
-    });
+      photo: curPhoto || null });
     toast('Aparat adăugat', 'ok');
   }
-  setAp(list);
-  closeModal();
-  renderAparate();
-  renderDash();
+  setAp(list); closeModal(); renderAparate(); renderDash();
 }
-
 function delAp(id) {
   if (!confirm('Ștergi aparatul și tot istoricul?')) return;
   setAp(getAp().filter(x => x.id !== id));
   setAnt(getAnt().filter(x => x.apId !== id));
-  toast('Șters');
-  renderAparate();
-  renderDash();
+  toast('Șters'); renderAparate(); renderDash();
 }
 
 /* ══════════════════════════════════════
-   ANTRENAMENT
+   LOG / ANTRENAMENT
 ══════════════════════════════════════ */
 let selApId = null;
 let sets    = [{ val: '', serii: '', reps: '' }];
 let curUnit = 'kg';
 
-function initAntrenament() {
+function initLog() {
   selApId = null;
   sets = [{ val: '', serii: '', reps: '' }];
   curUnit = 'kg';
   document.getElementById('trainNote').value = '';
+
+  // set today's date as default
+  document.getElementById('trainDateInput').value = todayISO();
 
   // reset unit toggle
   document.querySelectorAll('.unit-btn').forEach(b =>
@@ -310,7 +346,7 @@ function initAntrenament() {
   document.getElementById('colLabel').textContent = 'Greutate';
 
   // hide sub-sections
-  ['setsCard','noteCard','saveWrap'].forEach(id =>
+  ['setsCard', 'noteCard', 'saveWrap'].forEach(id =>
     document.getElementById(id).style.display = 'none');
 
   // render picker
@@ -336,11 +372,10 @@ function selAp(id) {
   selApId = id;
   document.querySelectorAll('.pc-card').forEach(c => c.classList.remove('sel'));
   document.getElementById('pc-' + id)?.classList.add('sel');
-  ['setsCard','noteCard','saveWrap'].forEach(el =>
+  ['setsCard', 'noteCard', 'saveWrap'].forEach(el =>
     document.getElementById(el).style.display = '');
 }
 
-// unit toggle
 document.querySelectorAll('.unit-btn').forEach(b => {
   b.addEventListener('click', () => {
     curUnit = b.dataset.unit;
@@ -352,7 +387,7 @@ document.querySelectorAll('.unit-btn').forEach(b => {
 
 function renderSets() {
   const step = curUnit === 'kg' ? '.5' : '1';
-  const ph   = curUnit === 'kg' ? 'kg' : 'niv';
+  const ph   = curUnit === 'kg' ? 'kg'  : 'niv';
   document.getElementById('setsList').innerHTML = sets.map((s, i) => `
     <div class="set-row">
       <div class="set-num">${i + 1}</div>
@@ -367,10 +402,8 @@ function renderSets() {
 }
 
 document.getElementById('btnAddSet').addEventListener('click', () => {
-  sets.push({ val: '', serii: '', reps: '' });
-  renderSets();
+  sets.push({ val: '', serii: '', reps: '' }); renderSets();
 });
-
 function delSet(i) {
   if (sets.length === 1) { toast('Minimum o serie!', 'err'); return; }
   sets.splice(i, 1); renderSets();
@@ -380,28 +413,34 @@ document.getElementById('btnSaveTrain').addEventListener('click', () => {
   if (!selApId) { toast('Selectează un aparat!', 'err'); return; }
   const valid = sets.filter(s => s.val !== '' || s.serii !== '' || s.reps !== '');
   if (!valid.length) { toast('Completează cel puțin o serie!', 'err'); return; }
+
+  // build ISO from selected date + current time
+  const dateVal = document.getElementById('trainDateInput').value || todayISO();
+  const [y, m, dd] = dateVal.split('-').map(Number);
+  const now = new Date();
+  const isoDate = new Date(y, m - 1, dd,
+    now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+
   const ant = getAnt();
   ant.push({
-    id: db.uid(),
-    apId: selApId,
-    data: new Date().toISOString(),
-    unit: curUnit,
+    id: db.uid(), apId: selApId,
+    data: isoDate, unit: curUnit,
     sets: valid.map(s => ({
-      val:   parseFloat(s.val)   || 0,
-      serii: parseInt(s.serii)  || 1,
-      reps:  parseInt(s.reps)   || 1,
+      val:   parseFloat(s.val)  || 0,
+      serii: parseInt(s.serii) || 1,
+      reps:  parseInt(s.reps)  || 1,
     })),
     note: document.getElementById('trainNote').value.trim(),
   });
   setAnt(ant);
   toast('Antrenament salvat!', 'ok');
-  initAntrenament();
+  initLog();
 });
 
 /* ══════════════════════════════════════
    DETALIU APARAT
 ══════════════════════════════════════ */
-let chartInst = null;
+let detChartDrawn = false;
 
 function openDetaliu(id) {
   const ap  = getAp().find(x => x.id === id); if (!ap) return;
@@ -410,137 +449,115 @@ function openDetaliu(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('screen-detaliu').classList.add('active');
+  detChartDrawn = false;
 
-  // name + grup
   document.getElementById('detNume').textContent = ap.nume;
   const gb = document.getElementById('detGrup');
   if (ap.grup) { gb.textContent = ap.grup; gb.style.display = ''; }
   else gb.style.display = 'none';
 
-  // photo
   const dp = document.getElementById('detPhoto');
   dp.innerHTML = ap.photo ? `<img src="${ap.photo}" alt="${ap.nume}">` : '🏋️';
 
-  // edit btn
   document.getElementById('btnEditDet').onclick = () => openEdit(id);
 
-  // meta
-  const allVals = ant.flatMap(a => a.sets.map(s => s.val));
+  const allVals = ant.flatMap(a => a.sets.map(s => parseFloat(s.val) || 0));
   const maxV    = allVals.length ? Math.max(...allVals) : 0;
-  const lastUnit = ant.length ? ant[ant.length - 1].unit : 'kg';
+  const lu      = ant.length ? ant[ant.length - 1].unit : 'kg';
   document.getElementById('detMeta').innerHTML = `
     <div class="meta-box">
       <div class="meta-val">${ant.length}</div>
       <div class="meta-lbl">Sesiuni</div>
     </div>
     <div class="meta-box">
-      <div class="meta-val">${maxV} <small style="font-size:.9rem">${lastUnit}</small></div>
+      <div class="meta-val">${maxV}<small style="font-size:.9rem"> ${lu}</small></div>
       <div class="meta-lbl">Record</div>
     </div>
     ${ap.note ? `<div class="meta-box" style="grid-column:1/-1;text-align:left">
       <div class="meta-lbl">Note</div>
-      <div style="font-size:.8rem;margin-top:.3rem;color:var(--g600)">${ap.note}</div>
+      <div style="font-size:.9rem;margin-top:.3rem;color:var(--g600)">${ap.note}</div>
     </div>` : ''}`;
 
-  // chart + history
-  renderChart(ant);
+  renderDetChart(ant);
   renderHistory(ant);
 }
 
 document.getElementById('btnBack').addEventListener('click', () => showView('dashboard'));
 
-/* ── INLINE MINI CHART (no CDN) ── */
-function renderChart(ant) {
+/* ── DETALIU CHART (larger, with axes) ── */
+function renderDetChart(ant) {
   const canvas = document.getElementById('progCanvas');
-  const empty  = document.getElementById('chartEmpty');
-
-  // destroy previous
-  if (chartInst) { chartInst = null; }
-  canvas.style.display = 'none';
-  empty.style.display  = 'flex';
-
+  const ph     = document.getElementById('chartEmpty');
+  canvas.style.display = 'none'; ph.style.display = 'flex';
   if (!ant.length) return;
-
-  canvas.style.display = 'block';
-  empty.style.display  = 'none';
+  canvas.style.display = 'block'; ph.style.display = 'none';
 
   const labels = ant.map(a => fmtShort(a.data));
   const data   = ant.map(a => Math.max(...a.sets.map(s => parseFloat(s.val) || 0)));
 
-  // draw manually with Canvas 2D
-  const dpr = window.devicePixelRatio || 1;
-  const W   = canvas.parentElement.clientWidth - 2; // -2 for border
-  const H   = 180;
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width  = W + 'px';
-  canvas.style.height = H + 'px';
+  requestAnimationFrame(() => {
+    const dpr = window.devicePixelRatio || 1;
+    const W   = canvas.parentElement.clientWidth - 2;
+    const H   = 200;
+    canvas.width  = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
 
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
+    const PAD = { t: 16, r: 16, b: 38, l: 44 };
+    const cW  = W - PAD.l - PAD.r;
+    const cH  = H - PAD.t - PAD.b;
+    const mn  = Math.min(...data);
+    const mx  = Math.max(...data);
+    const rng = mx - mn || 1;
 
-  const PAD = { top: 16, right: 16, bottom: 36, left: 42 };
-  const cW = W - PAD.left - PAD.right;
-  const cH = H - PAD.top  - PAD.bottom;
+    const xp = i => PAD.l + (i / Math.max(data.length - 1, 1)) * cW;
+    const yp = v => PAD.t + cH - ((v - mn) / rng) * cH;
 
-  const minV = Math.min(...data);
-  const maxV = Math.max(...data);
-  const rng  = maxV - minV || 1;
+    // grid
+    ctx.strokeStyle = '#ebebeb'; ctx.lineWidth = 1;
+    [0, .25, .5, .75, 1].forEach(t => {
+      const y = PAD.t + t * cH;
+      ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(PAD.l + cW, y); ctx.stroke();
+    });
+    // y labels
+    ctx.fillStyle = '#a3a3a3'; ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'right';
+    [0, .5, 1].forEach(t => {
+      const val = mn + t * rng;
+      ctx.fillText(val.toFixed(0), PAD.l - 6, PAD.t + (1 - t) * cH + 4);
+    });
 
-  const xPos = i => PAD.left + (i / Math.max(data.length - 1, 1)) * cW;
-  const yPos = v => PAD.top  + cH - ((v - minV) / rng) * cH;
+    // area
+    const grad = ctx.createLinearGradient(0, PAD.t, 0, PAD.t + cH);
+    grad.addColorStop(0, 'rgba(15,15,15,.08)'); grad.addColorStop(1, 'rgba(15,15,15,0)');
+    ctx.beginPath();
+    ctx.moveTo(xp(0), yp(data[0]));
+    data.forEach((v, i) => { if (i) ctx.lineTo(xp(i), yp(v)); });
+    ctx.lineTo(xp(data.length - 1), PAD.t + cH);
+    ctx.lineTo(xp(0), PAD.t + cH);
+    ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
 
-  // grid lines
-  ctx.strokeStyle = '#ebebeb'; ctx.lineWidth = 1;
-  [0, .25, .5, .75, 1].forEach(t => {
-    const y = PAD.top + t * cH;
-    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
+    // line
+    ctx.beginPath(); ctx.strokeStyle = '#0f0f0f'; ctx.lineWidth = 1.8;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    data.forEach((v, i) => { i === 0 ? ctx.moveTo(xp(i), yp(v)) : ctx.lineTo(xp(i), yp(v)); });
+    ctx.stroke();
+
+    // dots
+    data.forEach((v, i) => {
+      ctx.beginPath(); ctx.arc(xp(i), yp(v), 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.strokeStyle = '#0f0f0f'; ctx.lineWidth = 1.8; ctx.stroke();
+    });
+
+    // x labels (max 6)
+    ctx.fillStyle = '#a3a3a3'; ctx.textAlign = 'center'; ctx.font = '11px -apple-system,sans-serif';
+    const step = Math.ceil(labels.length / 6);
+    labels.forEach((lbl, i) => {
+      if (i % step === 0 || i === labels.length - 1)
+        ctx.fillText(lbl, xp(i), H - 10);
+    });
   });
-
-  // y labels
-  ctx.fillStyle = '#a3a3a3'; ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'right';
-  [0, .5, 1].forEach(t => {
-    const val = minV + t * rng;
-    ctx.fillText(val.toFixed(0), PAD.left - 6, PAD.top + (1 - t) * cH + 4);
-  });
-
-  // area fill
-  const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + cH);
-  grad.addColorStop(0, 'rgba(15,15,15,.08)');
-  grad.addColorStop(1, 'rgba(15,15,15,0)');
-  ctx.beginPath();
-  ctx.moveTo(xPos(0), yPos(data[0]));
-  data.forEach((v, i) => { if (i > 0) ctx.lineTo(xPos(i), yPos(v)); });
-  ctx.lineTo(xPos(data.length - 1), PAD.top + cH);
-  ctx.lineTo(xPos(0), PAD.top + cH);
-  ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
-
-  // line
-  ctx.beginPath(); ctx.strokeStyle = '#0f0f0f'; ctx.lineWidth = 1.5;
-  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-  data.forEach((v, i) => {
-    i === 0 ? ctx.moveTo(xPos(i), yPos(v)) : ctx.lineTo(xPos(i), yPos(v));
-  });
-  ctx.stroke();
-
-  // points
-  data.forEach((v, i) => {
-    ctx.beginPath(); ctx.arc(xPos(i), yPos(v), 3.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff'; ctx.fill();
-    ctx.strokeStyle = '#0f0f0f'; ctx.lineWidth = 1.5; ctx.stroke();
-  });
-
-  // x labels (show max 6)
-  ctx.fillStyle = '#a3a3a3'; ctx.textAlign = 'center'; ctx.font = '10px -apple-system,sans-serif';
-  const step = Math.ceil(labels.length / 6);
-  labels.forEach((lbl, i) => {
-    if (i % step === 0 || i === labels.length - 1) {
-      ctx.fillText(lbl, xPos(i), H - 8);
-    }
-  });
-
-  chartInst = true; // mark as rendered
 }
 
 function renderHistory(ant) {
@@ -563,9 +580,5 @@ function renderHistory(ant) {
   }).join('');
 }
 
-/* ══════════════════════════════════════
-   INIT
-══════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
-  showView('dashboard');
-});
+/* ── INIT ── */
+document.addEventListener('DOMContentLoaded', () => showView('dashboard'));

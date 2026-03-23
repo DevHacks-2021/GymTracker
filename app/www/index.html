@@ -12,25 +12,23 @@
 </head>
 <body>
 
-<!-- ═══════════ NAVBAR ═══════════ -->
-<header class="navbar" id="navbar">
+<!-- NAVBAR -->
+<header class="navbar">
   <div class="nav-logo">GymTracker</div>
-  <nav class="nav-tabs" id="navTabs">
+  <nav class="nav-tabs">
     <button class="nav-tab active" onclick="showView('dashboard')">Dashboard</button>
     <button class="nav-tab" onclick="showView('aparate')">Aparate</button>
     <button class="nav-tab" onclick="showView('antrenament')">+ Log</button>
   </nav>
 </header>
 
-<!-- ═══════════ SCREENS ═══════════ -->
-
-<!-- DASHBOARD -->
+<!-- ══════════ DASHBOARD ══════════ -->
 <section class="screen active" id="screen-dashboard">
   <div class="page-top">
     <div class="page-title">Bună ziua</div>
     <div class="chips" id="statsChips"></div>
   </div>
-  <div id="dashGrid" class="aparate-grid"></div>
+  <div class="aparate-grid" id="dashGrid"></div>
   <div class="empty-state" id="dashEmpty" style="display:none">
     <div class="empty-icon">🏋️</div>
     <p>Niciun aparat adăugat.<br>Începe prin a crea primul aparat.</p>
@@ -38,7 +36,7 @@
   </div>
 </section>
 
-<!-- APARATE -->
+<!-- ══════════ APARATE ══════════ -->
 <section class="screen" id="screen-aparate">
   <div class="page-top">
     <div class="page-title">Aparate</div>
@@ -51,22 +49,33 @@
   </div>
 </section>
 
-<!-- ANTRENAMENT -->
+<!-- ══════════ ANTRENAMENT / LOG ══════════ -->
 <section class="screen" id="screen-antrenament">
   <div class="page-top">
-    <div class="page-title">Antrenament</div>
-    <div class="train-date" id="trainDate"></div>
+    <div class="page-title">Log</div>
   </div>
+
+  <!-- Date picker -->
   <div class="card">
-    <div class="card-label">Aparat</div>
-    <div class="picker-grid" id="pickerGrid"></div>
-    <div class="empty-state" id="pickerEmpty" style="display:none;padding:1rem 0">
-      <p style="font-size:.85rem;color:var(--muted)">Adaugă mai întâi un aparat.</p>
+    <div class="card-label">Data antrenamentului</div>
+    <div class="date-row">
+      <span>📅</span>
+      <input type="date" id="trainDateInput"/>
     </div>
   </div>
 
+  <!-- Aparat picker -->
+  <div class="card">
+    <div class="card-label">Aparat</div>
+    <div class="picker-grid" id="pickerGrid"></div>
+    <div class="empty-state" id="pickerEmpty" style="display:none;padding:.75rem 0">
+      <p style="font-size:.9rem;color:var(--muted)">Adaugă mai întâi un aparat.</p>
+    </div>
+  </div>
+
+  <!-- Serii (hidden until aparat selected) -->
   <div class="card" id="setsCard" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
       <div class="card-label" style="margin:0">Serii</div>
       <div class="unit-toggle">
         <button class="unit-btn active" data-unit="kg">kg</button>
@@ -74,25 +83,31 @@
       </div>
     </div>
     <div class="sets-head">
-      <span>#</span><span id="colLabel">Greutate</span><span>Serii</span><span>Reps</span><span></span>
+      <span>#</span>
+      <span id="colLabel">Greutate</span>
+      <span>Serii</span>
+      <span>Reps</span>
+      <span></span>
     </div>
     <div id="setsList"></div>
     <button class="btn-add-row" id="btnAddSet">+ serie</button>
   </div>
 
+  <!-- Note -->
   <div class="card" id="noteCard" style="display:none">
     <div class="card-label">Note</div>
     <textarea id="trainNote" placeholder="Observații..."></textarea>
   </div>
 
+  <!-- Save -->
   <div id="saveWrap" style="display:none;padding:0 0 1rem">
     <button class="btn btn-black btn-full" id="btnSaveTrain">Salvează antrenament</button>
   </div>
 </section>
 
-<!-- DETALIU -->
+<!-- ══════════ DETALIU ══════════ -->
 <section class="screen" id="screen-detaliu">
-  <div class="page-top">
+  <div class="page-top" style="margin-bottom:1rem">
     <button class="btn-back" id="btnBack">← înapoi</button>
     <button class="btn btn-outline" id="btnEditDet">Editează</button>
   </div>
@@ -104,19 +119,17 @@
     </div>
   </div>
   <div class="meta-grid" id="detMeta"></div>
-
   <div class="card" style="margin-top:1rem">
-    <div class="card-label">Progres greutate</div>
-    <div class="chart-wrap" id="chartWrap">
-      <div class="chart-empty" id="chartEmpty">Niciun antrenament înregistrat.</div>
+    <div class="card-label">Progres</div>
+    <div class="chart-wrap">
       <canvas id="progCanvas" style="display:none"></canvas>
+      <div class="chart-empty" id="chartEmpty">Niciun antrenament înregistrat.</div>
     </div>
   </div>
-
-  <div id="histList" class="hist-list"></div>
+  <div class="hist-list" id="histList"></div>
 </section>
 
-<!-- ═══════════ MODAL APARAT ═══════════ -->
+<!-- ══════════ MODAL APARAT ══════════ -->
 <div class="overlay" id="modalAp" style="display:none">
   <div class="modal">
     <div class="modal-head">
@@ -138,12 +151,12 @@
         </select>
       </div>
       <div class="field">
-        <label>Fotografie <span id="photoCounter" style="font-weight:400;text-transform:none;letter-spacing:0"></span></label>
+        <label>Fotografie</label>
         <div class="photo-drop" id="photoDrop">
           <input type="file" id="photoFile" accept="image/*" style="display:none"/>
           <img id="photoPreview" src="" alt="" style="display:none"/>
           <div class="photo-hint" id="photoHint">
-            <div style="font-size:1.5rem">📷</div>
+            <div>📷</div>
             <p>Click pentru fotografie</p>
             <small>Max 5 MB · se comprimă automat</small>
           </div>
@@ -161,9 +174,7 @@
   </div>
 </div>
 
-<!-- TOAST -->
 <div class="toast" id="toast"></div>
-
 <script src="js/app.js"></script>
 </body>
 </html>
